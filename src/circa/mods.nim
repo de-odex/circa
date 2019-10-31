@@ -36,6 +36,7 @@ type
     ScoreV2
     Mirror
   Mods* = set[Mod]
+  OrderedMods* = seq[Mod]
   HitWindows* = tuple
     hit_300: Duration
     hit_100: Duration
@@ -53,18 +54,34 @@ const
   NO_SCORE_MODS*: Mods = {Relax, Relax2, Autoplay}
   DIFFICULTY_CHANGING_MODS*: Mods = {Easy, HardRock, HalfTime, DoubleTime}
 
-let
+  # taken from https://github.com/circleguard/circlecore/blob/57465bb7d16cce9846de06fcb248a718b3bff7c4/circleguard/enums.py#L249
   writeOrder = [
-    NoFail,
-    Hidden, FadeIn,
-    Easy, HardRock,
-    HalfTime, DoubleTime,
-    SuddenDeath, Perfect,
+    Easy, Hidden,
+    HalfTime, DoubleTime, Nightcore,
     Flashlight,
-    SpunOut,
-    Key1, Key2, Key3, Key4, Key5, Key6, Key7, Key8, Key9,
+    NoFail,
+    SuddenDeath, Perfect,
+    Relax, Relax2, SpunOut, Autoplay,
+    ScoreV2,
+
+    TouchDevice,
+    FadeIn, Random, Cinema, TargetPractice,
+    Key1, Key2, Key3, Key4, Key5, Key6, Key7, Key8, Key9, KeyCoop,
+    Mirror
   ]
-  shortStrings = newTable(
+  incompatibleMods = [
+    {Easy, HardRock},
+    {HalfTime, DoubleTime},
+    {Hidden, FadeIn},
+    {Flashlight, FadeIn},
+    {Relax, Relax2, Autoplay},
+    {Relax2, Autoplay, SpunOut},
+    {SuddenDeath, Perfect},
+    KEYMOD,
+  ]
+
+let
+  mod2ShortString = newTable(
     [
       (NoFail, "nf"),
       (Hidden, "hd"),
@@ -89,27 +106,24 @@ let
     ]
   )
   shortString2Mod = newOrderedTable[string, Mod]()
-  mod2ShortString = newOrderedTable[Mod, string]()
-  incompatibleMods = [
-    {Easy, HardRock},
-    {HalfTime, DoubleTime},
-    {Hidden, FadeIn},
-    {Flashlight, FadeIn},
-    {Relax, Relax2, Autoplay},
-    {Relax2, Autoplay, SpunOut},
-    {SuddenDeath, Perfect},
-    KEYMOD,
-  ]
 
 for m in writeOrder:
-  shortString2Mod[shortStrings[m]] = m
-  mod2ShortString[m] = shortStrings[m]
+  shortString2Mod[mod2ShortString[m]] = m
 
 proc toNum*(m: Mods): int =
   cast[cint](m)
 
 proc toMods*(v: int): Mods =
   cast[Mods](v)
+
+proc toMods*(oms: OrderedMods): Mods =
+  for m in oms:
+    result = result + {m}
+
+proc toOrderedMods*(ms: Mods): OrderedMods =
+  for m in writeOrder:
+    if m in ms:
+      result.add(m)
 
 proc parseShortMods*(v: string): Mods =
   for n in countup(0, v.len - 1, 2):
@@ -124,7 +138,7 @@ proc toShortString*(ms: Mods): string =
   if ms.len == 0:
     return "nm"
 
-  for m in ms:
+  for m in ms.toOrderedMods():
     result &= m.toShortString
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
