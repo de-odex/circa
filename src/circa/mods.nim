@@ -62,17 +62,9 @@ let
     SuddenDeath, Perfect,
     Flashlight,
     SpunOut,
-    Key1,
-    Key2,
-    Key3,
-    Key4,
-    Key5,
-    Key6,
-    Key7,
-    Key8,
-    Key9,
+    Key1, Key2, Key3, Key4, Key5, Key6, Key7, Key8, Key9,
   ]
-  mod2String = newTable(
+  shortStrings = newTable(
     [
       (NoFail, "nf"),
       (Hidden, "hd"),
@@ -96,8 +88,8 @@ let
       (Key9, "9k"),
     ]
   )
-  mapping = newOrderedTable[string, Mod]()
-  flipMapping = newOrderedTable[Mod, string]()
+  shortString2Mod = newOrderedTable[string, Mod]()
+  mod2ShortString = newOrderedTable[Mod, string]()
   incompatibleMods = [
     {Easy, HardRock},
     {HalfTime, DoubleTime},
@@ -110,8 +102,8 @@ let
   ]
 
 for m in writeOrder:
-  mapping[mod2String[m]] = m
-  flipMapping[m] = mod2String[m]
+  shortString2Mod[shortStrings[m]] = m
+  mod2ShortString[m] = shortStrings[m]
 
 proc toNum*(m: Mods): int =
   cast[cint](m)
@@ -121,12 +113,12 @@ proc toMods*(v: int): Mods =
 
 proc parseShortMods*(v: string): Mods =
   for n in countup(0, v.len - 1, 2):
-    if v.toLower[n .. n + 1] in mapping:
-      result = result + {mapping[v.toLower[n .. n + 1]]}
+    if v.toLower[n .. n + 1] in shortString2Mod:
+      result = result + {shortString2Mod[v.toLower[n .. n + 1]]}
 
 proc toShortString*(m: Mod): string =
-  if m in flipMapping:
-    result = flip_mapping[m]
+  if m in mod2ShortString:
+    result = mod2ShortString[m]
 
 proc toShortString*(ms: Mods): string =
   if ms.len == 0:
