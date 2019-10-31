@@ -139,7 +139,7 @@ proc toShortString*(ms: Mods): string =
   if ms.len == 0:
     return "nm"
 
-  for m in ms:
+  for m in ms.toOrderedMods():
     result &= m.toShortString
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
