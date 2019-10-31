@@ -54,7 +54,6 @@ const
   NO_SCORE_MODS*: Mods = {Relax, Relax2, Autoplay}
   DIFFICULTY_CHANGING_MODS*: Mods = {Easy, HardRock, HalfTime, DoubleTime}
 
-let
   # taken from https://github.com/circleguard/circlecore/blob/57465bb7d16cce9846de06fcb248a718b3bff7c4/circleguard/enums.py#L249
   writeOrder = [
     Easy, Hidden,
@@ -70,6 +69,18 @@ let
     Key1, Key2, Key3, Key4, Key5, Key6, Key7, Key8, Key9, KeyCoop,
     Mirror
   ]
+  incompatibleMods = [
+    {Easy, HardRock},
+    {HalfTime, DoubleTime},
+    {Hidden, FadeIn},
+    {Flashlight, FadeIn},
+    {Relax, Relax2, Autoplay},
+    {Relax2, Autoplay, SpunOut},
+    {SuddenDeath, Perfect},
+    KEYMOD,
+  ]
+
+let
   mod2ShortString = newTable(
     [
       (NoFail, "nf"),
@@ -95,16 +106,6 @@ let
     ]
   )
   shortString2Mod = newOrderedTable[string, Mod]()
-  incompatibleMods = [
-    {Easy, HardRock},
-    {HalfTime, DoubleTime},
-    {Hidden, FadeIn},
-    {Flashlight, FadeIn},
-    {Relax, Relax2, Autoplay},
-    {Relax2, Autoplay, SpunOut},
-    {SuddenDeath, Perfect},
-    KEYMOD,
-  ]
 
 for m in writeOrder:
   shortString2Mod[mod2ShortString[m]] = m
