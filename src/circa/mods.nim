@@ -1,6 +1,6 @@
 import strutils, tables
 
-import units
+import game_mode, units
 
 type
   Mod* {.size: sizeof(cint).} = enum
@@ -98,6 +98,16 @@ let
   )
   mapping = newOrderedTable[string, Mod]()
   flipMapping = newOrderedTable[Mod, string]()
+  incompatibleMods = [
+    {Easy, HardRock},
+    {HalfTime, DoubleTime},
+    {Hidden, FadeIn},
+    {Flashlight, FadeIn},
+    {Relax, Relax2, Autoplay},
+    {Relax2, Autoplay, SpunOut},
+    {SuddenDeath, Perfect},
+    KEYMOD,
+  ]
 
 for m in writeOrder:
   mapping[mod2String[m]] = m
@@ -124,3 +134,14 @@ proc toShortString*(ms: Mods): string =
 
   for m in ms:
     result &= m.toShortString
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+proc verify*(ms: Mods, gm: GameMode): bool =
+  # TODO: add gamemode support
+  result = true
+  if (Nightcore in ms and DoubleTime notin ms):
+    return false
+
+  for s in incompatibleMods:
+    if (ms * s).len > 1: return false
