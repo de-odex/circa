@@ -54,15 +54,20 @@ const
   DIFFICULTY_CHANGING_MODS*: Mods = {Easy, HardRock, HalfTime, DoubleTime}
 
 let
+  # taken from https://github.com/circleguard/circlecore/blob/57465bb7d16cce9846de06fcb248a718b3bff7c4/circleguard/enums.py#L249
   writeOrder = [
-    NoFail,
-    Hidden, FadeIn,
-    Easy, HardRock,
-    HalfTime, DoubleTime,
-    SuddenDeath, Perfect,
+    Easy, Hidden,
+    HalfTime, DoubleTime, Nightcore,
     Flashlight,
-    SpunOut,
-    Key1, Key2, Key3, Key4, Key5, Key6, Key7, Key8, Key9,
+    NoFail,
+    SuddenDeath, Perfect,
+    Relax, Relax2, SpunOut, Autoplay,
+    ScoreV2,
+
+    TouchDevice,
+    FadeIn, Random, Cinema, TargetPractice,
+    Key1, Key2, Key3, Key4, Key5, Key6, Key7, Key8, Key9, KeyCoop,
+    Mirror
   ]
   shortStrings = newTable(
     [
