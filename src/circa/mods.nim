@@ -70,7 +70,7 @@ let
     Key1, Key2, Key3, Key4, Key5, Key6, Key7, Key8, Key9, KeyCoop,
     Mirror
   ]
-  shortStrings = newTable(
+  mod2ShortString = newTable(
     [
       (NoFail, "nf"),
       (Hidden, "hd"),
@@ -95,7 +95,6 @@ let
     ]
   )
   shortString2Mod = newOrderedTable[string, Mod]()
-  mod2ShortString = newOrderedTable[Mod, string]()
   incompatibleMods = [
     {Easy, HardRock},
     {HalfTime, DoubleTime},
@@ -108,8 +107,7 @@ let
   ]
 
 for m in writeOrder:
-  shortString2Mod[shortStrings[m]] = m
-  mod2ShortString[m] = shortStrings[m]
+  shortString2Mod[mod2ShortString[m]] = m
 
 proc toNum*(m: Mods): int =
   cast[cint](m)
