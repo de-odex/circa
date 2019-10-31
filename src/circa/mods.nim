@@ -36,6 +36,7 @@ type
     ScoreV2
     Mirror
   Mods* = set[Mod]
+  OrderedMods* = seq[Mod]
   HitWindows* = tuple
     hit_300: Duration
     hit_100: Duration
@@ -115,6 +116,15 @@ proc toNum*(m: Mods): int =
 
 proc toMods*(v: int): Mods =
   cast[Mods](v)
+
+proc toMods*(oms: OrderedMods): Mods =
+  for m in oms:
+    result = result + {m}
+
+proc toOrderedMods*(ms: Mods): OrderedMods =
+  for m in writeOrder:
+    if m in ms:
+      result.add(m)
 
 proc parseShortMods*(v: string): Mods =
   for n in countup(0, v.len - 1, 2):
