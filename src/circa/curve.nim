@@ -2,6 +2,7 @@ import units, utils
 
 import math, sequtils, strformat
 
+import itertools
 
 #[
   refer to https://osu.ppy.sh/help/wiki/osu!_File_Formats/Osu_(file_format) to understand part of this
@@ -21,6 +22,36 @@ type
   Curve* = object
     curves*: seq[CurvePortion]
     reqLength*: float
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# for catmull...
+iterator splitToSections(inp: seq[Position]): seq[Position] =
+  # sliding window of 2 positions representing the middle 2 positions returned
+  # first and last positions are either right before/after the middle 2 positions
+  # or generated according to the below algorithm
+  # first pos: either duplicated second pos or pos before second pos
+  # fourth pos: either pos after third pos or an interpolation (p2 + p2 - p1)
+  # see nim-glm for operators
+  for n, pseq in toSeq(inp.windowed(2)):
+    let
+      p1 = inp[max(0, n - 1)]
+      p4 = if inp.len - 1 < n + 2: pseq[1] + pseq[1] - pseq[0] else inp[n + 2]
+    yield @[p1, pseq[0], pseq[1], p4]
+
+# for bezier...
+iterator splitAtDupes(inp: seq[Position]): seq[Position] =
+  # just yields another list when a duplicate is found; cuts between the duplicate
+  # how difficult is that to understand?
+  var old_idx = 0
+  for n, pseq in toSeq(inp.windowed(2)):
+    if pseq[0] == pseq[1]:
+      yield inp[old_idx ..< n + 1]
+      old_idx = n + 1
+
+  var tail = inp[old_idx..inp.high]
+  if tail.len > 0:
+    yield tail
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
