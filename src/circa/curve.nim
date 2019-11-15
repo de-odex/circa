@@ -36,7 +36,7 @@ iterator splitToSections(inp: seq[Position]): seq[Position] =
   for n, pseq in toSeq(inp.windowed(2)):
     let
       p1 = inp[max(0, n - 1)]
-      p4 = if inp.len - 1 < n + 2: pseq[1] + pseq[1] - pseq[0] else inp[n + 2]
+      p4 = if inp.len - 1 < n + 2: pseq[1] + pseq[1] - pseq[0] else: inp[n + 2]
     yield @[p1, pseq[0], pseq[1], p4]
 
 # for bezier...
