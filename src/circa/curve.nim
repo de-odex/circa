@@ -9,19 +9,34 @@ import itertools
 ]#
 
 type
-  CurvePortion* = ref object of RootObj
+  Curve* = ref object of RootObj
+    # A single curve
     points*: seq[Position]
 
-  Bezier* = ref object of CurvePortion
-  Linear* = ref object of CurvePortion
-  Catmull* = ref object of CurvePortion
-  Perfect* = ref object of CurvePortion
+  Bezier* = ref object of Curve
+    # Beziers can have 2 to inf points.
+    # 2 points are treated as linear
+    # (TODO: automatically convert 2 point bezier curves into linear)
+  Linear* = ref object of Curve
+    # Linears can only have 2 points (in file)
+    # Perhaps when the to-do above is completed, this will not be assumed
+  Catmull* = ref object of Curve
+    # Catmulls aren't found often anymore, so I'm not able to find much data about them
+    # They are documented as Centripetal in the wiki, though
+  Perfect* = ref object of Curve
+    # Perfects can only have 3 points
+    # They are basically circumscribed circles from triangles;
+    #   the start is the first vertex, end is last vertex
     center*: Position
-    angle*: float  # ORIGINAL angle in radians, not modified by any reqLength
+    angle*: float # ORIGINAL angle in radians, not modified by any reqLength
 
-  Curve* = object
-    curves*: seq[CurvePortion]
-    reqLength*: float
+  LimCurveSeq* = object
+    # Limited Curve Sequence. A seq[Curve] with a limited length
+    curves*: seq[Curve] # Can hold any type of curve, as to
+                        # accomodate the future to-do about creating Linears
+                        # instead of Beziers when the Bezier is 2 points
+                        # long.
+    reqLength*: float # required length
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
