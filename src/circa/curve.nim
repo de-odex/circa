@@ -157,3 +157,33 @@ method at(curve: Perfect, t: float): Position =
   # broken for t > 1; should continue linearly at tangent slope of endpoint
   let p = curve.points
   rotate(p[0], curve.center, curve.angle * t)
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+proc linLength(points: openarray[Position]): float =
+  for ps in points.windowed(2):
+    result += (ps[1] - ps[0]).length # dunno why but distance() doesn't like me
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+const DETAIL = 50 ## how many times at will be called for trueLength calculation
+
+method trueLength*(curve: Curve): float {.base.} =
+  # "true" here means the actual length of the curve, not the "reqLength"
+  # this does not mean that it is not approximate, approximate is a given
+  # considering computers.
+  var points: array[DETAIL, Position]
+  for i in 0..<DETAIL:
+    points[i] = curve.at(i/DETAIL)
+  points.linLength
+
+method trueLength*(curve: Linear): float =
+  (curve.points[1] - curve.points[0]).length
+
+method trueLength*(curve: Perfect): float =
+  # simply radius multiplied by angle in radians
+  abs(curve.angle * (curve.points[0] - curve.center).length)
+
+proc totalLength*(curves: seq[Curve]): float =
+  for c in curves:
+    result += c.trueLength
