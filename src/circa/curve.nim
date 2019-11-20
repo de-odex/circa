@@ -187,3 +187,57 @@ method trueLength*(curve: Perfect): float =
 proc totalLength*(curves: seq[Curve]): float =
   for c in curves:
     result += c.trueLength
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+proc newBezier*(points: seq[Position]): seq[Curve] =
+  for ps in points.splitAtDupes:
+    # ps is varying in length
+    result.add(Bezier(points: ps))
+
+proc newLinear*(points: seq[Position]): seq[Curve] =
+  for ps in points.windowed(2):
+    # ps is always 2 elements long
+    result.add(Linear(points: ps))
+
+proc newCatmull*(points: seq[Position]): seq[Curve] =
+  for ps in points.splitToSections:
+    # ps is always 4 elements long
+    result.add(Catmull(points: ps))
+
+proc newPerfect*(points: seq[Position], center: Position): seq[Curve] =
+  if points.len != 3:
+    raise newException(ValueError, "only three points may be specified for perfect curves")
+
+  var coordinates: seq[Position] = @[]
+  for p in points:
+    coordinates.add(p - center)
+
+  # angles of 3 points to center
+  let
+    startAngle = arctan2(coordinates[0].y, coordinates[0].x, )
+  var
+    endAngle = arctan2(coordinates[2].y, coordinates[2].x, )
+
+  # normalize so that result._angle is positive
+  if endAngle < startAngle:
+    endAngle += 2'f64 * PI
+
+  var
+    # angle of arc sector that describes slider
+    angle = endAngle - startAngle
+
+  let
+    # switch angle direction if necessary
+    aToC = coordinates[2] - coordinates[0]
+    orthoAToC = newPos(aToC[1], -aToC[0])
+
+  if orthoAToC.dot(coordinates[1] - coordinates[0]) < 0:
+    angle = -(2 * PI - angle)
+
+  result.add(Perfect(points: points, center: center, angle: angle))
+
+proc newPerfect*(points: seq[Position]): seq[Curve] =
+  if points.len != 3:
+    raise newException(ValueError, "only three points may be specified for perfect curves")
+  newPerfect(points, getCenter(points))
