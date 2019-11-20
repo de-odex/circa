@@ -108,3 +108,52 @@ proc rotate(position, center: Position, radians: float): Position =
 
 proc binCoeff(n, k: int): float =
   n.fac / (k.fac * (n - k).fac)
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+const
+  tau = 1 # osu's sliders are centripetal
+  catmullMat: Mat4d = mat4(
+    vec4d(0, -tau, 2*tau, -tau),
+    vec4d(2, 0, tau-6, 4-tau),
+    vec4d(0, tau, -2*(tau-3), tau-4),
+    vec4d(0, 0, -tau, tau),
+  )
+
+method at(curve: Curve, t: float): Position {.base.} =
+  # this method should be able to handle a t of over 1
+  discard
+
+method at(curve: Curve, ts: openarray[float]): seq[Position] {.base.} =
+  for t in ts:
+    result.add(curve.at(t))
+
+method at(curve: Bezier, t: float): Position =
+  # not verified to be correct
+  let
+    p = curve.points
+    n = p.high # order of curve
+  # formula found at https://en.wikipedia.org/wiki/B%C3%A9zier_curve#Explicit_definition
+  for i in 0..n:
+    result += binCoeff(n, i) * (1 - t).pow((n - i).float64) * t.pow(i.float64) * p[i]
+
+method at(curve: Linear, t: float): Position =
+  # verified/accurate
+  let p = curve.points
+  p[0] + t * (p[1] - p[0])
+
+method at(curve: Catmull, t: float): Position =
+  # not verified to be correct
+  let
+    p = curve.points
+    tVec = vec4d(1, t.pow(1), t.pow(2), t.pow(3))
+    pXVec = vec4d(p[0].x, p[1].x, p[2].x, p[3].x)
+    pYVec = vec4d(p[0].y, p[1].y, p[2].y, p[3].y)
+    v = tVec / 2 * catmullMat
+  result = newPos(v.dot(pXVec), v.dot(pYVec))
+
+method at(curve: Perfect, t: float): Position =
+  # verified/accurate
+  # broken for t > 1; should continue linearly at tangent slope of endpoint
+  let p = curve.points
+  rotate(p[0], curve.center, curve.angle * t)
