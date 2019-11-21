@@ -241,3 +241,55 @@ proc newPerfect*(points: seq[Position]): seq[Curve] =
   if points.len != 3:
     raise newException(ValueError, "only three points may be specified for perfect curves")
   newPerfect(points, getCenter(points))
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# Approximation curve creation
+proc at*(curveSeq: LimCurveSeq, t: float): Position =
+  let curves = curveSeq.curves
+
+  # convert t (reqLength based) to t (totalLength based)
+  var
+    curvePosLength = t * curveSeq.reqLength
+    t = curvePosLength / curves.totalLength
+
+  if curves.len == 1:
+    result = curves[0].at(t)
+
+  elif curves.len > 1:
+    # curves[0..n] consists of all curves which are filled by the parameter (no need to get the inbetween)
+    # curves[n+1] is the curve we need to parametrize
+    var
+      n = curves.high
+    while curves[0..n].totalLength > curveSeq.reqLength:
+      n -= 1
+    if n == curves.high:
+      n -= 1
+
+    let
+      filledCurvesLength = curves[0..n].totalLength
+      unfilledCurveLength = curves[n+1].trueLength
+
+    # if remaining length of curve is almost equal to unfilledCurve length
+    if (curveSeq.reqLength - filledCurvesLength) ~= unfilledCurveLength:
+      # just set it to 1, assume equal
+      t = 1
+    else:
+      # get the remaining length of the curve and divide it by the trueLength
+      t = (curvePosLength - filledCurvesLength) / unfilledCurveLength
+
+    result = curves[n+1].at(t)
+
+proc at*(curveSeq: LimCurveSeq, ts: openarray[float]): seq[Position] =
+  for t in ts:
+    result.add(curveSeq.at(t))
+
+proc trueLength*(curveSeq: LimCurveSeq): float =
+  var points: array[DETAIL, Position]
+  for i in 0..DETAIL:
+    points[i] = curveSeq.at(i/DETAIL)
+  points.linLength
+
+proc initLimCurveSeq*(curves: seq[Curve], reqLength: float): LimCurveSeq =
+  # TODO: handle longer-than-curve reqLengths; see initBezier
+  LimCurveSeq(curves: curves, reqLength: reqLength)
