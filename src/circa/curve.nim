@@ -173,7 +173,7 @@ method trueLength*(curve: Curve): float {.base.} =
   # this does not mean that it is not approximate, approximate is a given
   # considering computers.
   var points: array[DETAIL, Position]
-  for i in 0..<DETAIL:
+  for i in 0..DETAIL:
     points[i] = curve.at(i/DETAIL)
   points.linLength
 
