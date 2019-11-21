@@ -293,3 +293,26 @@ proc trueLength*(curveSeq: LimCurveSeq): float =
 proc initLimCurveSeq*(curves: seq[Curve], reqLength: float): LimCurveSeq =
   # TODO: handle longer-than-curve reqLengths; see initBezier
   LimCurveSeq(curves: curves, reqLength: reqLength)
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+proc fromKindAndPoints*(kind: string, points: seq[Position],
+    reqLength: float): LimCurveSeq =
+  case kind:
+    of "B":
+      result = initLimCurveSeq(newBezier(points), reqLength)
+    of "L":
+      result = initLimCurveSeq(newLinear(points), reqLength)
+    of "C":
+      result = initLimCurveSeq(newCatmull(points), reqLength)
+    of "P":
+      var center: Position
+      if points.len != 3:
+        result = initLimCurveSeq(newBezier(points), reqLength)
+      try:
+        center = getCenter(points)
+        result = initLimCurveSeq(newPerfect(points, center), reqLength)
+      except ValueError:
+        result = initLimCurveSeq(newBezier(points), reqLength)
+    else:
+      raise newException(ValueError, &"unknown curve kind: {kind}")
