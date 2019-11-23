@@ -250,9 +250,11 @@ proc newPerfect*(points: seq[Position]): seq[Curve] =
 proc at*(curveSeq: LimCurveSeq, t: float): Position =
   let curves = curveSeq.curves
 
-  # convert t (reqLength based) to t (totalLength based)
   var
     curvePosLength = t * curveSeq.reqLength
+    t = t
+  if not (curveSeq.reqLength ~= curves.totalLength):
+    # convert t (reqLength based) to t (totalLength based)
     t = curvePosLength / curves.totalLength
 
   if curves.len == 1:
