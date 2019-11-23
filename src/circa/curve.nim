@@ -174,7 +174,7 @@ method trueLength*(curve: Curve): float {.base.} =
   # "true" here means the actual length of the curve, not the "reqLength"
   # this does not mean that it is not approximate, approximate is a given
   # considering computers.
-  var points: array[DETAIL, Position]
+  var points: array[DETAIL+1, Position]
   for i in 0..DETAIL:
     points[i] = curve.at(i/DETAIL)
   points.linLength
