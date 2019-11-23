@@ -263,7 +263,7 @@ proc at*(curveSeq: LimCurveSeq, t: float): Position =
     # curves[n+1] is the curve we need to parametrize
     var
       n = curves.high
-    while curves[0..n].totalLength > curveSeq.reqLength:
+    while curves[0..n].totalLength > curvePosLength:
       n -= 1
     if n == curves.high:
       n -= 1
@@ -273,7 +273,7 @@ proc at*(curveSeq: LimCurveSeq, t: float): Position =
       unfilledCurveLength = curves[n+1].trueLength
 
     # if remaining length of curve is almost equal to unfilledCurve length
-    if (curveSeq.reqLength - filledCurvesLength) ~= unfilledCurveLength:
+    if (curvePosLength - filledCurvesLength) ~= unfilledCurveLength:
       # just set it to 1, assume equal
       t = 1
     else:
