@@ -269,7 +269,7 @@ proc at*(curveSeq: LimCurveSeq, t: float): Position =
       n -= 1
 
     let
-      filledCurvesLength = curves[0..n].totalLength
+      filledCurvesLength = if n >= 0: curves[0..n].totalLength else: 0'f64
       unfilledCurveLength = curves[n+1].trueLength
 
     # if remaining length of curve is almost equal to unfilledCurve length
