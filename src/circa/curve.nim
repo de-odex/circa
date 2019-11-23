@@ -288,10 +288,8 @@ proc at*(curveSeq: LimCurveSeq, ts: openarray[float]): seq[Position] =
     result.add(curveSeq.at(t))
 
 proc trueLength*(curveSeq: LimCurveSeq): float =
-  var points: array[DETAIL, Position]
-  for i in 0..DETAIL:
-    points[i] = curveSeq.at(i/DETAIL)
-  points.linLength
+  for curve in curveSeq.curves:
+    result += curve.trueLength
 
 proc initLimCurveSeq*(curves: seq[Curve], reqLength: float): LimCurveSeq =
   # TODO: handle longer-than-curve reqLengths; see initBezier
