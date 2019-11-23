@@ -154,7 +154,7 @@ proc toShortString*(ms: Mods): string =
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-proc verify*(ms: Mods, gm: GameMode): bool =
+proc verify*(ms: Mods, gm: GameMode = Standard): bool =
   # TODO: add gamemode support
   result = true
   if (Nightcore in ms and DoubleTime notin ms):
