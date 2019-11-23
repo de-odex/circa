@@ -6,6 +6,7 @@ import itertools
 
 #[
   refer to https://osu.ppy.sh/help/wiki/osu!_File_Formats/Osu_(file_format) to understand part of this
+  especially where "slider"s are tackled
 ]#
 
 type
@@ -112,7 +113,7 @@ proc binCoeff(n, k: int): float =
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 const
-  tau = 1 # osu's sliders are centripetal
+  tau = 1 # osu's catmull curves are centripetal
   catmullMat: Mat4d = mat4(
     vec4d(0, -tau, 2*tau, -tau),
     vec4d(2, 0, tau-6, 4-tau),
@@ -144,6 +145,7 @@ method at(curve: Linear, t: float): Position =
 
 method at(curve: Catmull, t: float): Position =
   # not verified to be correct
+  # formula found at https://andrewhungblog.wordpress.com/2017/03/03/catmull-rom-splines-in-plain-english/
   let
     p = curve.points
     tVec = vec4d(1, t.pow(1), t.pow(2), t.pow(3))
@@ -219,7 +221,7 @@ proc newPerfect*(points: seq[Position], center: Position): seq[Curve] =
   var
     endAngle = arctan2(coordinates[2].y, coordinates[2].x, )
 
-  # normalize so that result._angle is positive
+  # normalize so that result[0].angle is positive
   if endAngle < startAngle:
     endAngle += 2'f64 * PI
 
@@ -276,6 +278,7 @@ proc at*(curveSeq: LimCurveSeq, t: float): Position =
       t = 1
     else:
       # get the remaining length of the curve and divide it by the trueLength
+      # to get the parameter for the unfilled curve
       t = (curvePosLength - filledCurvesLength) / unfilledCurveLength
 
     result = curves[n+1].at(t)
