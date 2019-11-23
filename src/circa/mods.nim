@@ -90,10 +90,19 @@ let
       (HardRock, "hr"),
       (HalfTime, "ht"),
       (DoubleTime, "dt"),
+      (Nightcore, "nc"),
       (SuddenDeath, "sd"),
       (Perfect, "pf"),
       (Flashlight, "fl"),
       (SpunOut, "so"),
+      (Relax, "rx"),
+      (Relax2, "ap"),
+      (Autoplay, "at"),
+      (TargetPractice, "tp"),
+      (ScoreV2, "v2"),
+      (TouchDevice, "td"),
+      (Random, "rd"),
+      (Cinema, "cn"),
       (Key1, "1k"),
       (Key2, "2k"),
       (Key3, "3k"),
@@ -103,6 +112,8 @@ let
       (Key7, "7k"),
       (Key8, "8k"),
       (Key9, "9k"),
+      (KeyCoop, "co"),
+      (Mirror, "mr"),
     ]
   )
   shortString2Mod = newOrderedTable[string, Mod]()
