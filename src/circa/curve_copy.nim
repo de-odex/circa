@@ -373,7 +373,7 @@ when isMainModule:
   # echo sq[3].curves[0].at(@[0.0, 0.5, 1.0])
   # echo sq[3].at(1.5)
   const detail2 = 200
-  var pos = sq[0].at(toSeq(0..detail2).mapIt(it / detail2))
+  var pos = sq[3].at(toSeq(0..detail2).mapIt(it / detail2))
 
   cmd "set xr [0:512]"
   cmd "set yr [384:0]"

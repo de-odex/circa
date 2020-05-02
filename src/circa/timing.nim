@@ -7,28 +7,62 @@ import unpack
 export options
 
 type
-  TimingPoint* = ref object
-    offset*: Duration
-    beatDuration*: Duration
-    meter*: int
-    sampleSet*: SampleSet
-    sampleIndex*: int
-    volume*: uint8
-    parent*: Option[TimingPoint]
-    kiaiMode*: bool
 
-  Bpm* = distinct float
+  TimingPointEffect* {.size: sizeof(cint).} = enum
+    KiaiTime
+    BarLineOmit = 4
+  TimingPointEffects* = set[TimingPointEffect]
+  TimingPoint* = ref object ## A timing point assigns properties to an offset
+                            ## into a beatmap.
+    offset*: Duration ## When this ``TimingPoint`` takes effect.
+    case inherited*: bool ## Whether or not the timing point is inherited.
+    of true:
+      sliderDurationMultiplier*: float
+      parent*: TimingPoint ## The parent of an inherited timing point.
+                           ## An inherited timing point differs from a
+                           ## normal timing point in that the
+                           ## ``ms_per_beat`` value is negative, and
+                           ## defines a new ``ms_per_beat`` based on the
+                           ## parent timing point. This can be used to
+                           ## change volume without affecting offset
+                           ## timing, or changing slider speeds. If this
+                           ## is not an inherited timing point the parent
+                           ## should be ``None``.
+    of false:
+      beatDuration*: Duration ## The duration of a beat, this is another
+                              ## representation of BPM.
+    meter*: int ## The number of beats per measure.
+    sampleSet*: SampleSet ## The type of hit sound samples that are used. FIXME
+    sampleIndex*: int ## The set of hit sound samples that are used. FIXME
+    volume*: uint8 ## The volume of hit sounds in the range [0, 100].
+                   ## This value will be clipped if outside the range.
+
+    effects*: TimingPointEffects ## Whether or not kiai time effects are active.
+
+  Bpm* = float
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-proc newTimingPoint*(offset: Duration,
+proc toInt*(tpe: TimingPointEffects): int =
+  cast[cint](tpe)
+
+proc toTimingPointEffects*(v: int): TimingPointEffects =
+  cast[TimingPointEffects](v)
+
+proc parseTimingPointEffects*(s: string): TimingPointEffects =
+  s.parseInt().toTimingPointEffects()
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+proc newTimingPoint*(
+    offset: Duration,
     beatDuration: Duration,
     meter: int,
     sampleSet: SampleSet,
     sampleIndex: int,
     volume: uint8,
-    parent: Option[TimingPoint],
-    kiaiMode: bool): TimingPoint =
+    effects: TimingPointEffects
+  ): TimingPoint =
   new result
   result.offset = offset
   result.beatDuration = beatDuration
@@ -36,11 +70,30 @@ proc newTimingPoint*(offset: Duration,
   result.sampleSet = sampleSet
   result.sampleIndex = sampleIndex
   result.volume = volume
+  result.effects = effects
+
+proc newTimingPointInherited*(
+    offset: Duration,
+    sliderDurationMultiplier: float,
+    meter: int,
+    sampleSet: SampleSet,
+    sampleIndex: int,
+    volume: uint8,
+    parent: TimingPoint,
+    effects: TimingPointEffects
+  ): TimingPoint =
+  result = TimingPoint(inherited: true)
+  result.offset = offset
+  result.sliderDurationMultiplier = sliderDurationMultiplier
+  result.meter = meter
+  result.sampleSet = sampleSet
+  result.sampleIndex = sampleIndex
+  result.volume = volume
   result.parent = parent
-  result.kiaiMode = kiaiMode
+  result.effects = effects
 
 proc bpm*(self: TimingPoint): Bpm =
-  (60 / self.beatDuration.inFloatSeconds).Bpm
+  60 / self.beatDuration.inFloatSeconds
 
 # TODO: standardise strings
 proc `$`*(self: TimingPoint): string =
@@ -49,7 +102,11 @@ proc `$`*(self: TimingPoint): string =
   # &"<{$type(self)}: {p}{self.offset.inFloatMilliseconds}ms>"
 
 proc at*(timingPoints: openarray[TimingPoint], time: Duration): TimingPoint =
-  timingPoints.filterIt(it.offset <= time)[^1]
+  let timingPointsBefore = timingPoints.filterIt(it.offset <= time)
+  if timingPointsBefore.len > 0:
+    timingPointsBefore[^1]
+  else:
+    timingPoints[0]
 
 proc between*(timingPoints: openarray[TimingPoint],
     s, e: Duration): seq[TimingPoint] =
@@ -58,7 +115,6 @@ proc between*(timingPoints: openarray[TimingPoint],
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 proc parseTimingPoint*(data: string, parent: Option[TimingPoint]=none(TimingPoint)): TimingPoint =
-  new result
   var
     rest = data.split(",")
 
@@ -70,9 +126,9 @@ proc parseTimingPoint*(data: string, parent: Option[TimingPoint]=none(TimingPoin
     sampleIndexStr: string
     volumeStr: string
     inheritedStr: string
-    kiaiModeStr: string
+    effectsStr: string
 
-    offset: int
+    offset: float
     beatDuration: float
     sampleSet: int
 
@@ -81,34 +137,25 @@ proc parseTimingPoint*(data: string, parent: Option[TimingPoint]=none(TimingPoin
   except IndexError:
     raise newException(ValueError, &"not enough elements in line, got \"{data}\"")
 
-  offset <== offsetStr
-  result.offset = initDuration(milliseconds=offset)
-  beatDuration <== beatDurationStr
-
   try:
     [meterStr, *rest] <-- rest
   except IndexError:
     meterStr = "0"
-  result.meter <== meterStr
 
   try:
     [sampleSetStr, *rest] <-- rest
   except IndexError:
     sampleSetStr = "0"
-  sampleSet <== sampleSetStr
-  result.sampleSet = sampleSet.SampleSet
 
   try:
     [sampleIndexStr, *rest] <-- rest
   except IndexError:
     sampleIndexStr = "0"
-  result.sampleIndex <== sampleIndexStr
 
   try:
     [volumeStr, *rest] <-- rest
   except IndexError:
     volumeStr = "1"
-  result.volume <== volumeStr
 
   try:
     [inheritedStr, *rest] <-- rest
@@ -116,32 +163,42 @@ proc parseTimingPoint*(data: string, parent: Option[TimingPoint]=none(TimingPoin
     inheritedStr = "1"
 
   try:
-    [kiaiModeStr, *rest] <-- rest
+    [effectsStr, *rest] <-- rest
   except IndexError:
-    kiaiModeStr = "0"
-  result.kiaiMode <== kiaiModeStr
+    effectsStr = "0"
 
-  if (not inheritedStr.parseBool) and parent.isSome:
-    result.beatDuration = initDuration(
-      milliseconds=parent.get().beatDuration.inFloatMilliseconds *
-      abs(beatDuration / 100)
-    )
+  let inherited = not inheritedStr.parseBool
+  if parent.isSome:
+    result = TimingPoint(inherited: inherited)
+  else:
+    new result
+  offset <== offsetStr
+  result.offset = initDuration(milliseconds=offset)
+  beatDuration <== beatDurationStr
+  result.meter <== meterStr
+  sampleSet <== sampleSetStr
+  result.sampleSet = sampleSet.SampleSet
+  result.sampleIndex <== sampleIndexStr
+  result.volume <== volumeStr
+  result.effects <== effectsStr
+  if inherited and parent.isSome:
+    result.sliderDurationMultiplier = -1 * beatDuration / 100
+    result.parent = parent.get()
   else:
     result.beatDuration = initDuration(milliseconds=beatDuration)
-  result.parent = parent
 
 proc parseTimingPoints*(datas: seq[string]): seq[TimingPoint] =
   var parent: TimingPoint
   for v in datas:
     var tp: TimingPoint
     if parent.isNil:
-      tp = v.parseTimingPoint
+      tp = v.parseTimingPoint()
       if tp.beatDuration.inMilliseconds < 0:
         raise newException(ValueError, "missing parent timing point")
     else:
       tp = v.parseTimingPoint(some(parent))
     result.add(tp)
-    if tp.parent.isNone:
+    if not tp.inherited:
       parent = tp
 
 proc parseTimingPoints*(data: string): seq[TimingPoint] =

@@ -3,4 +3,7 @@ type
     Normal, Whistle, Finish, Clap
   HitSound* = set[HitSoundTypes]
   SampleSet* = enum
-    AutoSet = 0, NormalSet, SoftSet, DrumSet
+    NoSet = (0, "None")
+    NormalSet = "Normal"
+    SoftSet = "Soft"
+    DrumSet = "Drum"

@@ -25,5 +25,5 @@ test "curve at":
 test "curve length":
   check:
     initLimCurveSeq(newLinear(@[newPos(0, 0), newPos(1, 1), newPos(2, 0)]),
-        2*sqrt(2'd)).trueLength ~= 2*sqrt(2'd)
+        2*sqrt(2'd)).length ~= 2*sqrt(2'd)
 

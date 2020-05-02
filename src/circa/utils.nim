@@ -1,4 +1,4 @@
-import fenv, strutils, macros
+import fenv, strutils, macros, tables
 
 proc `~=`*[T:SomeFloat](x, y: T, ep=0.00001): bool =
   # taken from https://floating-point-gui.de/errors/comparison/

@@ -32,3 +32,6 @@ nimcache/
 .history
 
 # End of https://www.gitignore.io/api/nim,git,visualstudiocode
+
+test_suite/fruitybot/
+# ^ too large for git, has over a few thousand .osu files

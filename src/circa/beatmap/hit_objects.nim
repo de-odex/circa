@@ -13,21 +13,23 @@ type
   HitObjectAttrs* = set[HitObjectAttr]
 
   Addition* = object
-    sampleSet*: SampleSet
+    normalSet*: SampleSet
     additionSet*: SampleSet
     customIndex*: Option[int]
     sampleVolume*: Option[uint8]
     filename*: Option[string]
 
+  # NOTE: a hit object parsed right outta the beatmap file
+  #       aka not an accurate representation of an in-game hit object
   HitObject* = ref object of RootObj
     position*: Position
-    time*: Duration
+    startTime*: Duration
     hitSound*: HitSound
     addition*: Addition
     timingPoints*: ref seq[TimingPoint]
   Circle* = ref object of HitObject
   Slider* = ref object of HitObject
-    endTime*: Duration
+    pEndTime*: Duration
     curves*: LimCurveSeq
     repeat*: int
     pixelLength*: float
@@ -37,17 +39,48 @@ type
     edgeSounds*: seq[HitSound]
     edgeAdditions*: seq[Addition]
   Spinner* = ref object of HitObject
-    endTime*: Duration
-  HoldNote* = ref object of HitObject
+    pEndTime*: Duration
+  Hold* = ref object of HitObject
+    pEndTime*: Duration
 
   Tick* = object
     position: Position
     offset: Duration
     parent: HitObject
-    isNote: bool
+    isEndpoint: bool
 
 const
   HitObjectType* = {CircleType, SliderType, SpinnerType, HoldNoteType}
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+method endTime*(ho: HitObject): Duration {.base.} =
+  raise newException(ValueError, "hit object is not of any valid subtype")
+
+method endTime*(ho: Circle): Duration =
+  ho.startTime
+
+method endTime*(ho: Slider): Duration =
+  ho.pEndTime
+
+method endTime*(ho: Spinner): Duration =
+  ho.pEndTime
+
+method endTime*(ho: Hold): Duration =
+  ho.pEndTime
+
+
+method `endTime=`*(ho: var HitObject, val: Duration) {.base.} =
+  raise newException(ValueError, "hit object is not of any valid subtype")
+
+method `endTime=`*(ho: var Slider, val: Duration) =
+  ho.pEndTime = val
+
+method `endTime=`*(ho: var Spinner, val: Duration) =
+  ho.pEndTime = val
+
+method `endTime=`*(ho: var Hold, val: Duration) =
+  ho.pEndTime = val
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -58,13 +91,14 @@ proc parseHitSound*(data: string): HitSound =
 
 proc parseAddition*(data: string): Addition =
   var
-    sampleSetStr, additionSetStr, customIndexStr,
+    normalSetStr, additionSetStr, customIndexStr,
       sampleVolumeStr, filename: string
     customIndex: int
     sampleVolume: uint8
 
   try:
-    [sampleSetStr, additionSetStr, customIndexStr, sampleVolumeStr, filename] <-- data.split(':')
+    [normalSetStr, additionSetStr, customIndexStr, sampleVolumeStr,
+        filename] <-- data.split(':')
     customIndex <== customIndexStr
     sampleVolume <== sampleVolumeStr
     result.customIndex = some(customIndex)
@@ -72,41 +106,42 @@ proc parseAddition*(data: string): Addition =
     result.filename = some(filename)
   except IndexError:
     try:
-      [sampleSetStr, additionSetStr] <-- data.split(':')
+      [normalSetStr, additionSetStr] <-- data.split(':')
       result.customIndex = none(int)
       result.sampleVolume = none(uint8)
       result.filename = none(string)
     except IndexError:
       raise newException(ValueError, &"not enough elements in line, got \"{data}\"")
-  result.sampleSet = sampleSetStr.parseInt.SampleSet
+  result.normalSet = normalSetStr.parseInt.SampleSet
   result.additionSet = additionSetStr.parseInt.SampleSet
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-proc initTick(position: Position, offset: Duration, parent: HitObject, isNote: bool = false): Tick =
+proc initTick(position: Position, offset: Duration, parent: HitObject,
+    isEndpoint: bool = false): Tick =
   Tick(
     position: position,
     offset: offset,
     parent: parent,
-    isNote: isNote
+    isEndpoint: isEndpoint
   )
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 proc newHitObject*(position: Position,
-    time: Duration,
+    startTime: Duration,
     hitSound: int,
-    addition: Addition=Addition()): HitObject =
+    addition: Addition = Addition()): HitObject =
   new result
   result.position = position
-  result.time = time
+  result.startTime = startTime
   result.hitSound = cast[HitSound](hitSound)
   result.addition = addition
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 proc parseCircle*(position: Position,
-    time: Duration,
+    startTime: Duration,
     hitSound: HitSound,
     restArg: seq[string],
     timingPoints: ref seq[TimingPoint]): Circle =
@@ -118,12 +153,15 @@ proc parseCircle*(position: Position,
     raise newException(ValueError, &"extra data: {restArg}")
 
   result.position = position
-  result.time = time
+  result.startTime = startTime
   result.hitSound = hitSound
-  result.addition = parseAddition(restArg[0])
+  if restArg.len < 1 or restArg[0] == "":
+    result.addition = parseAddition("0:0:0:0:")
+  else:
+    result.addition = parseAddition(restArg[0])
 
 proc parseSlider*(position: Position,
-    time: Duration,
+    startTime: Duration,
     hitSound: HitSound,
     restArg: seq[string],
     timingPoints: ref seq[TimingPoint], # TODO: remove this
@@ -167,7 +205,7 @@ proc parseSlider*(position: Position,
       xStr, yStr: string
       x, y: float64
     try:
-        (xStr, yStr) = point.split(':')
+      (xStr, yStr) = point.split(':')
     except IndexError:
       raise newException(ValueError,
         &"expected points in the form x:y, got {point}"
@@ -213,13 +251,15 @@ proc parseSlider*(position: Position,
 
   if rest.len > 1:
     raise newException(ValueError, &"extra data: {rest}")
+  if rest.len < 1 or restArg[0] == "":
+    rest.add "0:0:0:0:"
 
-  tp = timingPoints[].at(time)
+  tp = timingPoints[].at(startTime)
 
-  if tp.parent.isSome:
-    velocityMultiplier = tp.parent.get().beatDuration.inFloatMilliseconds() /
-      tp.beatDuration.inFloatMilliseconds()
-    beatDuration = tp.parent.get().beatDuration
+  if tp.inherited:
+    velocityMultiplier = tp.parent.beatDuration.inFloatMilliseconds() *
+      tp.sliderDurationMultiplier
+    beatDuration = tp.parent.beatDuration
   else:
     velocityMultiplier = 1
     beatDuration = tp.beatDuration
@@ -232,7 +272,7 @@ proc parseSlider*(position: Position,
   result.numBeats = numBeats
 
   duration = initDuration(
-    milliseconds=ceil(beatDuration.inFloatMilliseconds * numBeats).int
+    milliseconds = ceil(beatDuration.inFloatMilliseconds * numBeats).int
   )
 
   # TODO: explain how the hell this does what it does 2: electric boogaloo
@@ -246,15 +286,15 @@ proc parseSlider*(position: Position,
   )
 
   result.position = position
-  result.time = time
-  result.endTime = time + duration
+  result.startTime = startTime
+  result.endTime = startTime + duration
   result.hitSound = hitSound
   result.curves = fromKindAndPoints(sliderType, points, pixelLength)
   result.tickRate = sliderTickRate
   result.addition = parseAddition(rest[0])
 
 proc parseSpinner*(position: Position,
-    time: Duration,
+    startTime: Duration,
     hitSound: HitSound,
     restArg: seq[string],
     timingPoints: ref seq[TimingPoint]): Spinner =
@@ -271,16 +311,48 @@ proc parseSpinner*(position: Position,
   except IndexError:
     raise newException(ValueError, &"missing endTime in {rest}")
   endTime <== endTimeStr
-  result.endTime = initDuration(milliseconds=endTime)
+  result.endTime = initDuration(milliseconds = endTime)
+
+  if rest.len > 1:
+    raise newException(ValueError, &"extra data: {rest}")
+  if rest.len < 1 or restArg[0] == "":
+    rest.add "0:0:0:0:"
+
+  result.position = position
+  result.startTime = startTime
+  result.hitSound = hitSound
+  result.addition = parseAddition(rest[0])
+
+proc parseHold*(position: Position,
+    startTime: Duration,
+    hitSound: HitSound,
+    restArg: seq[string],
+    timingPoints: ref seq[TimingPoint]): Hold =
+  new result
+  var
+    rest = restArg
+    endTimeStr: string
+    endTime: Duration
+
+  result.timingPoints = timingPoints
+
+  try:
+    [endTimeStr, *rest] <-- rest[0].split(":", 1)
+  except IndexError:
+    raise newException(ValueError, &"missing required hold data in \"{rest}\"")
+  endTime = initDuration(milliseconds = endTimeStr.parseInt)
 
   if rest.len > 1:
     raise newException(ValueError, &"extra data: {rest}")
 
-
   result.position = position
-  result.time = time
+  result.startTime = startTime
+  result.endTime = endTime
   result.hitSound = hitSound
-  result.addition = parseAddition(restArg[0])
+  if rest.len < 1 or restArg[0] == "":
+    result.addition = parseAddition("0:0:0:0:")
+  else:
+    result.addition = parseAddition(rest[0])
 
 proc parseHitObject*(data: string,
     timingPoints: ref seq[TimingPoint],
@@ -311,7 +383,7 @@ proc parseHitObject*(data: string,
   pos = newPos(x, y)
 
   timeInt <== timeStr
-  time = initDuration(milliseconds=timeInt)
+  time = initDuration(milliseconds = timeInt)
   typeInt <== typeStr
   typ = cast[HitObjectAttrs](typeInt) * HitObjectType
   hitSoundInt <== hitSoundStr
@@ -321,52 +393,59 @@ proc parseHitObject*(data: string,
     of 1: # CircleType
       result = parseCircle(pos, time, hitSound, rest, timingPoints)
     of 2: # SliderType
-      result = parseSlider(pos, time, hitSound, rest, timingPoints, sliderMultiplier, sliderTickRate)
+      result = parseSlider(pos, time, hitSound, rest, timingPoints,
+          sliderMultiplier, sliderTickRate)
     of 8: # SpinnerType
       result = parseSpinner(pos, time, hitSound, rest, timingPoints)
     of 128: # HoldNoteType
-      result = parseCircle(pos, time, hitSound, rest, timingPoints)
+      result = parseHold(pos, time, hitSound, rest, timingPoints)
     else:
       raise newException(ValueError, &"unknown type code {typeStr}")
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-method timingPoint(self: HitObject): TimingPoint {.base.} =
+proc timingPoint(ho: HitObject): TimingPoint =
   ## The timing point the HitObject is based on.
-  self.timingPoints[].at(self.time)
+  ho.timingPoints[].at(ho.startTime)
 
-proc tickPoints*(self: Slider): seq[Tick] =
+method tickPoints*(ho: HitObject): seq[Tick] {.base.} =
+  raise newException(ValueError, "bad object")
+
+method tickPoints*(ho: Slider): seq[Tick] =
   ## The position and time of each slider tick.
   ## USE WITH CAUTION: UNTESTED; Test cases needed
+  # NOTE: untested
   var
-    beatsPerRepeat = self.numBeats / self.repeat.float
-    ticksPerRepeat = self.tickRate * beatsPerRepeat
-    beatsPerTick =  beatsPerRepeat / ticksPerRepeat
-    repeatDuration: Duration = beatsPerRepeat * self.timingPoint.beatDuration
+    beatsPerRepeat = ho.numBeats / ho.repeat.float
+    ticksPerRepeat = ho.tickRate * beatsPerRepeat
+    beatsPerTick = beatsPerRepeat / ticksPerRepeat
+    repeatDuration: Duration = beatsPerRepeat * ho.timingPoint.beatDuration
 
     preRepeatTicks: seq[Tick] = @[]
 
   for t in fcount(beatsPerTick, beatsPerRepeat, beatsPerTick):
     var
-      pos = self.curves.at(t / beatsPerRepeat)
-      timediff = t * self.timingPoint.beatDuration
-    preRepeatTicks.add(initTick(pos, self.time + timediff, self))
+      pos = ho.curves.at(t / beatsPerRepeat)
+      timediff = t * ho.timingPoint.beatDuration
+    preRepeatTicks.add(initTick(pos, ho.startTime + timediff, ho))
 
   var
-    pos = self.curves.at(1)
+    pos = ho.curves.at(1)
     timediff = repeatDuration
-  preRepeatTicks.add(initTick(pos, self.time + timediff, self, true))
+  preRepeatTicks.add(initTick(pos, ho.startTime + timediff, ho, true))
 
   var repeatTicks: seq[Tick] = @[]
-  for (tick, pos) in zip(preRepeatTicks, toSeq(chain(preRepeatTicks[0..^3].reversed.map((x) => x.position), @[self.position]))):
-    repeatTicks.add initTick(pos, tick.offset, self, tick.isNote)
+  for (tick, pos) in zip(preRepeatTicks, toSeq(chain(preRepeatTicks[
+      0..^3].reversed.map((x) => x.position), @[ho.position]))):
+    repeatTicks.add initTick(pos, tick.offset, ho, tick.isEndpoint)
 
   # I don't know why cycle here takes a 2nd parameter but in the docs it doesn't.
-  var tickSequences: seq[seq[Tick]] = toSeq(islice(cycle(@[pre_repeat_ticks, repeat_ticks], high(int)), stop=self.repeat))
+  var tickSequences: seq[seq[Tick]] = toSeq(islice(cycle(@[pre_repeat_ticks,
+      repeat_ticks], high(int)), stop = ho.repeat))
 
   var toChain: seq[Tick] = @[]
   for i, tickSequence in tickSequences:
     for p in tickSequence:
-      toChain.add(initTick(p.position, p.offset + i * repeatDuration, self, p.isNote))
+      toChain.add(initTick(p.position, p.offset + i * repeatDuration, ho, p.isEndpoint))
 
   result = toSeq(chain(toChain))
