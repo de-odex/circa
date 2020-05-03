@@ -153,16 +153,29 @@ type
     score*: int
 
   # NOTE: use these for a more accurate representation of an in-game hit object
-  ModeHitObject* = ref object of RootObj
+  ModeHitObject* = object
     hitObject*: HitObject
-  StandardHitObject* = ref object of ModeHitObject
-  CatchHitObject* = ref object of ModeHitObject
-    distanceToHyperDash*: float
-    scale*: float
-    pHyperDashTarget: Option[CatchHitObject]
-  ManiaHitObject* = ref object of ModeHitObject
-    pColumn: Option[int]
-  TaikoHitObject* = ref object of ModeHitObject
+
+    case gameMode*: GameMode
+    of Standard: discard
+    of Catch:
+      distanceToHyperDash*: float
+      scale*: float
+      pHyperDashTarget: Option[ref ModeHitObject]
+    of Mania:
+      pColumn: Option[int]
+    of Taiko: discard
+
+  # ModeHitObject* = ref object of RootObj
+  #   hitObject*: HitObject
+  # StandardHitObject* = ref object of ModeHitObject
+  # CatchHitObject* = ref object of ModeHitObject
+  #   distanceToHyperDash*: float
+  #   scale*: float
+  #   pHyperDashTarget: Option[CatchHitObject]
+  # ManiaHitObject* = ref object of ModeHitObject
+  #   pColumn: Option[int]
+  # TaikoHitObject* = ref object of ModeHitObject
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -527,9 +540,9 @@ proc od*(sbm: ModeBeatmap): float =
   # NOTE: non-float durations, may have some loss in accuracy
   # nanoseconds is max resolution
   if DoubleTime in sbm.mods:
-    result = toOd(2 * toMS300(result) div 3)
+    result = (2 * result.OverallDifficulty.toMS300 div 3).toOD.float
   elif HalfTime in sbm.mods:
-    result = toOd(4 * toMS300(result) div 3)
+    result = (4 * result.OverallDifficulty.toMS300 div 3).toOD.float
 
 proc ar*(sbm: ModeBeatmap): float =
   result = sbm.beatmap.difficulty.approachRate
@@ -540,9 +553,9 @@ proc ar*(sbm: ModeBeatmap): float =
   # NOTE: non-float durations, may have some loss in accuracy
   # nanoseconds is max resolution
   if DoubleTime in sbm.mods:
-    result = toAR(2 * toMS(result) div 3)
+    result = (2 * result.ApproachRate.toMS div 3).toAR.float
   elif HalfTime in sbm.mods:
-    result = toAR(4 * toMS(result) div 3)
+    result = (4 * result.ApproachRate.toMS div 3).toAR.float
 
 proc difficulty*(sbm: ModeBeatmap): DifficultyData =
   result.hpDrainRate = sbm.hp
@@ -598,55 +611,80 @@ proc keyCount*(sbm: ModeBeatmap): int =
 # ex. what lane theyre on, for osu!mania converts
 # and what size they are, for osu!standard and osu!catch
 
+proc applyDefaultsToSelf*(mho: var ModeHitObject, difficulty: DifficultyData) =
+  case mho.gameMode
+
+  of Catch:
+    mho.scale = 1.0f - 0.7f * (difficulty.circleSize - 5) / 5
+
+  else:
+    raise newException(CatchableError, "") # TODO: proper "NotImpl." error
+
 # ─── OSU!CATCH ──────────────────────────────────────────────────────────────────
 
-proc newCatchHitObject*: CatchHitObject =
-  new result
+proc initCatchHitObject*: ModeHitObject =
+  result = ModeHitObject(gameMode: Catch)
   result.scale = 1
 
-proc applyDefaultsToSelf*(mho: var CatchHitObject, difficulty: DifficultyData) =
-  mho.scale = 1.0f - 0.7f * (difficulty.circleSize - 5) / 5
-
-proc newCatchHitObject*(difficulty: DifficultyData): CatchHitObject =
-  new result
+proc initCatchHitObject*(difficulty: DifficultyData): ModeHitObject =
+  result = ModeHitObject(gameMode: Catch)
   result.applyDefaultsToSelf(difficulty)
 
-template objectRadius*(mho: CatchHitObject): float = 44
+proc objectRadius*(mho: ModeHitObject): float =
+  case mho.gameMode
 
-proc hyperDash*(mho: CatchHitObject): bool =
+  of Catch:
+    result = 44
+
+  else:
+    raise newException(CatchableError, "") # TODO: proper "NotImpl." error
+
+proc hyperDash*(mho: ModeHitObject): bool =
+  if mho.gameMode != Catch:
+    raise newException(CatchableError, "") # TODO: proper "NotImpl." error
   mho.pHyperDashTarget.isSome
 
-proc hyperDashTarget*(mho: CatchHitObject): CatchHitObject =
-  if mho.pHyperDashTarget.isSome:
-    mho.pHyperDashTarget.get()
-  else:
-    raise newException(ValueError, "hyper dash target is unset")
+proc hyperDashTarget*(mho: ModeHitObject): ModeHitObject =
+  if mho.gameMode != Catch:
+    raise newException(CatchableError, "") # TODO: proper "NotImpl." error
+  # if mho.pHyperDashTarget.isSome:
+  mho.pHyperDashTarget.get()[]
+  # else:
+  #   raise newException(ValueError, "hyper dash target is unset")
 
-proc `hyperDashTarget=`*(mho: CatchHitObject, val: CatchHitObject) =
+proc `hyperDashTarget=`*(mho: var ModeHitObject, val: ModeHitObject) =
+  if mho.gameMode != Catch:
+    raise newException(CatchableError, "") # TODO: proper "NotImpl." error
   # if mho.pHyperDashTarget.isNone:
-  mho.pHyperDashTarget = some(val)
+  let rval = new ModeHitObject
+  rval[] = val
+  mho.pHyperDashTarget = some(rval)
   # else:
   #   raise newException(ValueError, "hyper dash target was already set")
 
 # ─── OSU!MANIA ──────────────────────────────────────────────────────────────────
 
-proc newManiaHitObject*: ManiaHitObject =
-  new result
+proc initManiaHitObject*: ModeHitObject =
+  ModeHitObject(gameMode: Mania)
 
-proc column*(mho: ManiaHitObject): int =
-  if mho.pColumn.isSome:
-    mho.pColumn.get()
-  else:
-    raise newException(ValueError, "column is unset")
+proc column*(mho: ModeHitObject): int =
+  if mho.gameMode != Mania:
+    raise newException(CatchableError, "") # TODO: proper "NotImpl." error
+  # if mho.pColumn.isSome:
+  mho.pColumn.get()
+  # else:
+  #   raise newException(ValueError, "column is unset")
 
-proc `column=`*(mho: var ManiaHitObject, val: int) =
-  if mho.pColumn.isNone:
-    mho.pColumn = some(val)
-  else:
-    raise newException(ValueError, "column was already set")
+proc `column=`*(mho: var ModeHitObject, val: int) =
+  if mho.gameMode != Mania:
+    raise newException(CatchableError, "") # TODO: proper "NotImpl." error
+  # if mho.pColumn.isNone:
+  mho.pColumn = some(val)
+  # else:
+  #   raise newException(ValueError, "column was already set")
+  # do i really need to make re-setting this a runtime error?
 
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 when isMainModule:
   import os

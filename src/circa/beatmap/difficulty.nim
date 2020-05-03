@@ -174,7 +174,7 @@ type
     taikoStrain
 
   Skill = object
-    previous*: seq[DifficultyHitObject]
+    usedDifficultyHitObjects*: seq[DifficultyHitObject]
     currentStrain*: float
     currentSectionPeak*: float
     strainPeaks*: seq[float]
@@ -195,23 +195,45 @@ type
     of taikoStrain:
       discard
 
-  DifficultyHitObject = ref object of RootObj
+  DifficultyHitObject = object
     modeHitObject: ModeHitObject
     lastModeHitObject: ModeHitObject
-  StandardDifficultyHitObject = ref object of DifficultyHitObject
-  CatchDifficultyHitObject = ref object of DifficultyHitObject
-    normalizedPosition: float
-    lastNormalizedPosition: float
-    strainTime: float
-  ManiaDifficultyHitObject = ref object of DifficultyHitObject
-  TaikoDifficultyHitObject = ref object of DifficultyHitObject
+    # here, i'd like mode to base on modeHitObject's gameMode
+    case pGameMode: GameMode
+    of Standard: discard
+    of Catch:
+      normalizedPosition: float
+      lastNormalizedPosition: float
+      strainTime: float
+    of Mania: discard
+    of Taiko: discard
+  # DifficultyHitObject = ref object of RootObj
+  #   modeHitObject: ModeHitObject
+  #   lastModeHitObject: ModeHitObject
+  # StandardDifficultyHitObject = ref object of DifficultyHitObject
+  # CatchDifficultyHitObject = ref object of DifficultyHitObject
+  #   normalizedPosition: float
+  #   lastNormalizedPosition: float
+  #   strainTime: float
+  # ManiaDifficultyHitObject = ref object of DifficultyHitObject
+  # TaikoDifficultyHitObject = ref object of DifficultyHitObject
 
-template holdEndTimes*(skill: Skill): seq[Duration] =
+proc holdEndTimes*(skill: Skill): seq[Duration] =
   case skill.kind
   of maniaIndividual:
     skill.holdEndTimesI
   of maniaOverall:
     skill.holdEndTimesO
+  else:
+    raise newException(ValueError, "")
+    # {.fatal: "undeclared field: holdEndTimes for type Skill".}
+
+proc holdEndTimes*(skill: var Skill): var seq[Duration] =
+  case skill.kind
+  of maniaIndividual:
+    result = skill.holdEndTimesI
+  of maniaOverall:
+    result = skill.holdEndTimesO
   else:
     raise newException(ValueError, "")
     # {.fatal: "undeclared field: holdEndTimes for type Skill".}
@@ -236,12 +258,14 @@ const
 
 # NOTE: ensure that hit objects are already modified by mods
 proc newDifficultyHitObject(current, last: ModeHitObject): DifficultyHitObject =
-  new result
+  result = DifficultyHitObject(pGameMode: current.gameMode)
   result.modeHitObject = current
   result.lastModeHitObject = last
+  if result.modeHitObject.gameMode != result.lastModeHitObject.gameMode:
+    raise newException(CatchableError, "") # TODO: proper "NotImpl." error
 
-proc newCatchDifficultyHitObject(current, last: ModeHitObject, halfCatcherWidth: float): CatchDifficultyHitObject =
-  result = newDifficultyHitObject(current, last).CatchDifficultyHitObject
+proc newCatchDifficultyHitObject(current, last: ModeHitObject, halfCatcherWidth: float): DifficultyHitObject =
+  result = newDifficultyHitObject(current, last)
   # We will scale everything by this factor, so we can assume a uniform CircleSize among beatmaps.
   var scalingFactor = normalizedHitobjectRadius / halfCatcherWidth
 
@@ -253,8 +277,8 @@ proc newCatchDifficultyHitObject(current, last: ModeHitObject, halfCatcherWidth:
   # Every strain interval is hard capped at the equivalent of 600 BPM streaming speed as a safety measure
   result.strainTime = max(25, (current.hitObject.startTime - last.hitObject.startTime).inFloatMilliseconds)
 
-proc newManiaDifficultyHitObject(current, last: ModeHitObject): ManiaDifficultyHitObject =
-  newDifficultyHitObject(current, last).ManiaDifficultyHitObject
+proc newManiaDifficultyHitObject(current, last: ModeHitObject): DifficultyHitObject =
+  newDifficultyHitObject(current, last)
 
 template decayBase(skill: Skill): float =
   case skill.kind
@@ -296,21 +320,22 @@ proc strainValueOf(skill: var Skill, dho: DifficultyHitObject): float =
   case skill.kind
 
   of catchMovement:
-    let catchDho = dho.CatchDifficultyHitObject
-    let last = catchDho.lastModeHitObject.CatchHitObject
+    if dho.pGameMode != Catch:
+      raise newException(CatchableError, "") # TODO: proper "NotImpl." error
+    let last = dho.lastModeHitObject
     if skill.lastPlayerPosition.isNone:
-      skill.lastPlayerPosition = some(catchDho.lastNormalizedPosition)
+      skill.lastPlayerPosition = some(dho.lastNormalizedPosition)
 
     var playerPosition = clamp(
       skill.lastPlayerPosition.get(),
-      catchDho.normalizedPosition - (normalizedHitobjectRadius - absolutePlayerPositioningError),
-      catchDho.normalizedPosition + (normalizedHitobjectRadius - absolutePlayerPositioningError)
+      dho.normalizedPosition - (normalizedHitobjectRadius - absolutePlayerPositioningError),
+      dho.normalizedPosition + (normalizedHitobjectRadius - absolutePlayerPositioningError)
     )
 
     var distanceMoved = playerPosition - skill.lastPlayerPosition.get()
 
     var distanceAddition = pow(abs(distanceMoved), 1.3) / 500
-    var sqrtStrain = sqrt(catchDho.strainTime)
+    var sqrtStrain = sqrt(dho.strainTime)
 
     var bonus = 0f
 
@@ -335,18 +360,19 @@ proc strainValueOf(skill: var Skill, dho: DifficultyHitObject): float =
         bonus += 1.0
       else:
         # After a hyperdash we ARE in the correct position. Always!
-        playerPosition = catchDho.normalizedPosition
+        playerPosition = dho.normalizedPosition
 
       distanceAddition *= 1.0 + bonus * ((10 - last.distanceToHyperDash * 512) / 10)
 
     skill.lastPlayerPosition = some(playerPosition)
     skill.lastDistanceMoved = distanceMoved
 
-    return distanceAddition / catchDho.strainTime
+    return distanceAddition / dho.strainTime
 
   of maniaIndividual:
-    let maniaDho = dho.ManiaDifficultyHitObject
-    let current = maniaDho.modeHitObject.ManiaHitObject
+    if dho.pGameMode != Mania:
+      raise newException(CatchableError, "") # TODO: proper "NotImpl." error
+    let current = dho.modeHitObject
     let endTime = current.hitObject.endTime
 
     if current.column != skill.column:
@@ -356,8 +382,9 @@ proc strainValueOf(skill: var Skill, dho: DifficultyHitObject): float =
     skill.holdEndTimes[current.column] = endTime
 
   of maniaOverall:
-    let maniaDho = dho.ManiaDifficultyHitObject
-    let current = maniaDho.current.ManiaHitObject
+    if dho.pGameMode != Mania:
+      raise newException(CatchableError, "") # TODO: proper "NotImpl." error
+    let current = dho.modeHitObject
     let endTime = current.hitObject.endTime
 
     # Factor in case something else is held
@@ -379,19 +406,22 @@ proc strainValueOf(skill: var Skill, dho: DifficultyHitObject): float =
       if skill.holdEndTimes[i] > endTime:
         holdFactor = 1.25
 
+  else:
+    raise newException(CatchableError, "no implementation") # TODO: proper "NotImpl." error
+
 proc process(skill: var Skill, dho: DifficultyHitObject) =
   ## Process a DifficultyHitObject and update current strain values accordingly.
-  skill.currentStrain *= skill.strainDecay(inFloatMilliseconds(dho.current.hitObject.startTime - dho.last.hitObject.startTime))
+  skill.currentStrain *= skill.strainDecay(inFloatMilliseconds(dho.modeHitObject.hitObject.startTime - dho.lastModeHitObject.hitObject.startTime))
   skill.currentStrain += skill.strainValueOf(dho) * skill.weightScaling
 
   skill.currentSectionPeak = max(skill.currentStrain, skill.currentSectionPeak)
 
-  skill.previous.add(dho)
+  skill.usedDifficultyHitObjects.add(dho)
 
 proc saveCurrentPeak(skill: var Skill) =
   ## Saves the current peak strain level to the list of strain peaks,
   ## which will be used to calculate an overall difficulty.
-  if skill.previous.len > 0:
+  if skill.usedDifficultyHitObjects.len > 0:
     skill.strainPeaks.add(skill.currentSectionPeak)
 
 proc startNewSectionFrom(skill: var Skill, offset: float) =
@@ -401,10 +431,10 @@ proc startNewSectionFrom(skill: var Skill, offset: float) =
   # strain decays as usual regardless of section boundaries.
   # This means we need to capture the strain level
   # at the beginning of the new section, and use that as the initial peak level.
-  if skill.previous.len > 0:
+  if skill.usedDifficultyHitObjects.len > 0:
     skill.currentSectionPeak = skill.currentStrain *
       skill.strainDecay(
-        offset - skill.previous[0].current.hitObject.startTime.inFloatMilliseconds
+        offset - skill.usedDifficultyHitObjects[0].modeHitObject.hitObject.startTime.inFloatMilliseconds
       )
 
 proc difficultyValue(skill: Skill): float =
@@ -471,26 +501,26 @@ iterator handleGroup(group: seq[Duration]): float =
 #     interval_end = strain_step
 #     max_strain = 0
 
-#   previous = None
+#   usedDifficultyHitObjects = None
 #   for difficulty_hit_object in difficulty_hit_objects:
 #       while difficulty_hit_object.hit_object.time > interval_end:
 #           append_highest_strain(max_strain)
 
-#           if previous is None:
+#           if usedDifficultyHitObjects is None:
 #               max_strain = 0
 #           else:
 #               decay = (
 #                   _DifficultyHitObject.decay_base[strain] ** (
 #                       interval_end -
-#                       previous.hit_object.time
+#                       usedDifficultyHitObjects.hit_object.time
 #                   ).total_seconds()
 #               )
-#               max_strain = previous.strains[strain] * decay
+#               max_strain = usedDifficultyHitObjects.strains[strain] * decay
 
 #           interval_end += strain_step
 
 #       max_strain = max(max_strain, difficulty_hit_object.strains[strain])
-#       previous = difficulty_hit_object
+#       usedDifficultyHitObjects = difficulty_hit_object
 
 #   difficulty = 0
 #   weight = 1
