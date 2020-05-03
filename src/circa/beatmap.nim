@@ -152,6 +152,12 @@ type
     misses*: int
     score*: int
 
+  CatchKind* = enum
+    Fruit
+    Droplet
+    JuiceStream
+    BananaShower
+
   # NOTE: use these for a more accurate representation of an in-game hit object
   ModeHitObject* = object
     hitObject*: HitObject
@@ -162,6 +168,15 @@ type
       distanceToHyperDash*: float
       scale*: float
       pHyperDashTarget: Option[ref ModeHitObject]
+      case catchKind*: CatchKind
+      of Fruit:
+        isBanana*: bool
+      of Droplet:
+        isTiny*: bool
+      of JuiceStream:
+        nestedHitObjects*: seq[ModeHitObject]
+      else:
+        discard # TODO: fix JuiceStream and BananaShower functionalities
     of Mania:
       pColumn: Option[int]
     of Taiko: discard

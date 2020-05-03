@@ -35,3 +35,4 @@ nimcache/
 
 test_suite/fruitybot/
 # ^ too large for git, has over a few thousand .osu files
+*private/

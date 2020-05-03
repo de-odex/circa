@@ -31,7 +31,7 @@ proc accuracy*(gm: GameMode,
 
 import ../../circa/[units, timing, utils, beatmap, beatmap/hit_objects]
 
-import sequtils, math, algorithm, tables
+import sequtils, math, algorithm, tables, sugar
 
 import itertools, arraymancer
 
@@ -257,15 +257,15 @@ const
   directionChangeBonus = 12.5
 
 # NOTE: ensure that hit objects are already modified by mods
-proc newDifficultyHitObject(current, last: ModeHitObject): DifficultyHitObject =
+proc initDifficultyHitObject(current, last: ModeHitObject): DifficultyHitObject =
   result = DifficultyHitObject(pGameMode: current.gameMode)
   result.modeHitObject = current
   result.lastModeHitObject = last
   if result.modeHitObject.gameMode != result.lastModeHitObject.gameMode:
     raise newException(CatchableError, "") # TODO: proper "NotImpl." error
 
-proc newCatchDifficultyHitObject(current, last: ModeHitObject, halfCatcherWidth: float): DifficultyHitObject =
-  result = newDifficultyHitObject(current, last)
+proc initCatchDifficultyHitObject(current, last: ModeHitObject, halfCatcherWidth: float): DifficultyHitObject =
+  result = initDifficultyHitObject(current, last)
   # We will scale everything by this factor, so we can assume a uniform CircleSize among beatmaps.
   var scalingFactor = normalizedHitobjectRadius / halfCatcherWidth
 
@@ -277,8 +277,8 @@ proc newCatchDifficultyHitObject(current, last: ModeHitObject, halfCatcherWidth:
   # Every strain interval is hard capped at the equivalent of 600 BPM streaming speed as a safety measure
   result.strainTime = max(25, (current.hitObject.startTime - last.hitObject.startTime).inFloatMilliseconds)
 
-proc newManiaDifficultyHitObject(current, last: ModeHitObject): DifficultyHitObject =
-  newDifficultyHitObject(current, last)
+proc initManiaDifficultyHitObject(current, last: ModeHitObject): DifficultyHitObject =
+  initDifficultyHitObject(current, last)
 
 template decayBase(skill: Skill): float =
   case skill.kind
@@ -436,6 +436,31 @@ proc startNewSectionFrom(skill: var Skill, offset: float) =
       skill.strainDecay(
         offset - skill.usedDifficultyHitObjects[0].modeHitObject.hitObject.startTime.inFloatMilliseconds
       )
+
+proc flattenOnce[T](a: seq[seq[T]]): seq[T] =
+  for b in a:
+    for c in b:
+      result.add c
+
+# TODO: base on a DifficultyCalculator object to fix...
+proc createDifficultyHitObjects(mbm: ModeBeatmap): seq[DifficultyHitObject] =
+  discard
+  case mbm.gameMode
+
+  of Catch:
+    var lastObject: Option[ModeHitObject]
+    # In 2B beatmaps, it is possible that a normal Fruit is placed in the middle of a JuiceStream.
+    for hitObject in mbm.modeHitObjects.mapIt(if it.catchKind == JuiceStream: it.nestedHitObjects else: @[it]).flattenOnce: # FIXME: no resort done
+      if (hitObject.catchKind == BananaShower or (hitObject.catchKind == Droplet and hitObject.isTiny)):
+        continue
+
+      if lastObject.isSome:
+        result.add initCatchDifficultyHitObject(hitObject, lastObject.get(), halfCatcherWidth) #... this error with halfCatcherWidth undefined
+
+      lastObject = some hitObject
+
+  else:
+    raise newException(CatchableError, "") # TODO: proper "NotImpl." error
 
 proc difficultyValue(skill: Skill): float =
   ## Returns the calculated difficulty value
