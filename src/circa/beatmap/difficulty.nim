@@ -326,13 +326,21 @@ proc strainValueOf(skill: var Skill, dho: DifficultyHitObject): float =
     if skill.lastPlayerPosition.isNone:
       skill.lastPlayerPosition = some(dho.lastNormalizedPosition)
 
-    var playerPosition = clamp(
-      skill.lastPlayerPosition.get(),
-      dho.normalizedPosition - (normalizedHitobjectRadius - absolutePlayerPositioningError),
-      dho.normalizedPosition + (normalizedHitobjectRadius - absolutePlayerPositioningError)
-    )
+    var playerPosition = withSome skill.lastPlayerPosition:
+      some lastPlayerPosition:
+        clamp(
+          lastPlayerPosition,
+          dho.normalizedPosition - (normalizedHitobjectRadius - absolutePlayerPositioningError),
+          dho.normalizedPosition + (normalizedHitobjectRadius - absolutePlayerPositioningError)
+        )
+      none:
+        raise newException(Defect, "skill.lastPlayerPosition was impossibly none")
 
-    var distanceMoved = playerPosition - skill.lastPlayerPosition.get()
+    var distanceMoved = withSome skill.lastPlayerPosition:
+      some lastPlayerPosition:
+        playerPosition - lastPlayerPosition
+      none:
+        raise newException(Defect, "skill.lastPlayerPosition was impossibly none")
 
     var distanceAddition = pow(abs(distanceMoved), 1.3) / 500
     var sqrtStrain = sqrt(dho.strainTime)
@@ -442,25 +450,29 @@ proc flattenOnce[T](a: seq[seq[T]]): seq[T] =
     for c in b:
       result.add c
 
-# TODO: base on a DifficultyCalculator object to fix...
 proc createDifficultyHitObjects(mbm: ModeBeatmap): seq[DifficultyHitObject] =
-  discard
   case mbm.gameMode
 
   of Catch:
-    var lastObject: Option[ModeHitObject]
+    var lastObjectOpt: Option[ModeHitObject]
     # In 2B beatmaps, it is possible that a normal Fruit is placed in the middle of a JuiceStream.
     for hitObject in mbm.modeHitObjects.mapIt(if it.catchKind == JuiceStream: it.nestedHitObjects else: @[it]).flattenOnce: # FIXME: no resort done
       if (hitObject.catchKind == BananaShower or (hitObject.catchKind == Droplet and hitObject.isTiny)):
         continue
 
-      if lastObject.isSome:
-        result.add initCatchDifficultyHitObject(hitObject, lastObject.get(), halfCatcherWidth) #... this error with halfCatcherWidth undefined
+      withSome lastObjectOpt:
+        some lastObject:
+          result.add initCatchDifficultyHitObject(hitObject, lastObject, mbm.halfCatcherWidth)
+        none:
+          raise newException(Defect, "lastObject was impossibly none")
 
-      lastObject = some hitObject
+      lastObjectOpt = some hitObject
 
   else:
     raise newException(CatchableError, "") # TODO: proper "NotImpl." error
+
+proc createSkills(mbm: ModeBeatmap): seq[Skill] =
+  return @[Skill(kind: catchMovement)]
 
 proc difficultyValue(skill: Skill): float =
   ## Returns the calculated difficulty value

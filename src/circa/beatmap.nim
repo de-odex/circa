@@ -1,6 +1,6 @@
-import units, game_mode, timing, beatmap/hit_objects, hitsound, mods
+import units, utils, game_mode, timing, beatmap/hit_objects, hitsound, mods
 
-import strutils, strformat, sequtils, math, sugar, tables, macros, sets, streams
+import strutils, strformat, sequtils, math, tables, macros, sets, streams
 
 import zip/zipfiles
 
@@ -13,16 +13,20 @@ proc getAsString(groups: Table[string, Table[string, string]],
   try:
     sectionTable = groups[section]
   except KeyError:
-    if default == none(string):
-      raise newException(ValueError, &"missing section {section}")
-    return default.get()
+    withSome default:
+      some value:
+        return value
+      none:
+        raise newException(ValueError, &"missing section {section}")
 
   try:
     result = sectionTable[field]
   except KeyError:
-    if default == none(string):
-      raise newException(ValueError, &"missing field {field} in section {section}")
-    result = default.get()
+    withSome default:
+      some value:
+        return value
+      none:
+        raise newException(ValueError, &"missing field {field} in section {section}")
 
 proc getAsString(groups: Table[string, Table[string, string]],
     section, field: string, default: string): string =
@@ -38,10 +42,12 @@ macro getAs(typ: untyped): untyped =
   result = quote do:
     proc `getAsTyp`(groups: Table[string, Table[string, string]],
         section, field: string, default = none(`typ`)): `typ` {.used.} =
-      let v = if default.isSome:
-          getAsString(groups, section, field, some($default.get()))
-        else:
-          getAsString(groups, section, field, none(string))
+      let v = block:
+        withSome default:
+          some value:
+            getAsString(groups, section, field, some($value))
+          none:
+            getAsString(groups, section, field, none(string))
 
       try:
         result = v.`parseTyp`()
@@ -143,10 +149,14 @@ type
   ModeBeatmap* = object
     beatmap*: Beatmap
     modeHitObjects*: seq[ModeHitObject]
-    gameMode*: GameMode
+    case gameMode*: GameMode
+    of Catch:
+      halfCatcherWidth*: float
+    else:
+      discard
     mods*: Mods
   ScoredBeatmap* = object
-    modeBeatmap: ModeBeatmap
+    modeBeatmap*: ModeBeatmap
     accuracy*: float
     combo*: int
     misses*: int
@@ -274,8 +284,11 @@ proc findGroups(
       # and start the new group
       if currentGroup != "":
         commitGroup()
-      elif until.isSome and currentGroup == until.get():
-        break
+      withSome until:
+        some value:
+          if currentGroup == value:
+            break
+        none: discard
       currentGroup = line[1..^2]
     else:
       groupBuffer.add(line)
@@ -662,10 +675,12 @@ proc hyperDash*(mho: ModeHitObject): bool =
 proc hyperDashTarget*(mho: ModeHitObject): ModeHitObject =
   if mho.gameMode != Catch:
     raise newException(CatchableError, "") # TODO: proper "NotImpl." error
-  # if mho.pHyperDashTarget.isSome:
-  mho.pHyperDashTarget.get()[]
-  # else:
-  #   raise newException(ValueError, "hyper dash target is unset")
+
+  withSome mho.pHyperDashTarget:
+    some hyperDashTarget:
+      hyperDashTarget[]
+    none:
+      raise newException(ValueError, "hyper dash target is unset")
 
 proc `hyperDashTarget=`*(mho: var ModeHitObject, val: ModeHitObject) =
   if mho.gameMode != Catch:
@@ -685,10 +700,12 @@ proc initManiaHitObject*: ModeHitObject =
 proc column*(mho: ModeHitObject): int =
   if mho.gameMode != Mania:
     raise newException(CatchableError, "") # TODO: proper "NotImpl." error
-  # if mho.pColumn.isSome:
-  mho.pColumn.get()
-  # else:
-  #   raise newException(ValueError, "column is unset")
+
+  withSome mho.pColumn:
+    some column:
+      column
+    none:
+      raise newException(ValueError, "column is unset")
 
 proc `column=`*(mho: var ModeHitObject, val: int) =
   if mho.gameMode != Mania:
@@ -701,9 +718,9 @@ proc `column=`*(mho: var ModeHitObject, val: int) =
 
   # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-when isMainModule:
-  import os
-  import std/monotimes
+# when isMainModule:
+  # import os
+  # import std/monotimes
   # import nimprof
 
   # for file in walkDir("./test_suite"):

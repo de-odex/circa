@@ -32,7 +32,7 @@ type Library = ref object
   downloadUrl: string
 
 proc writeToDb(lib: Library, beatmap: Beatmap, data: string, path: string)
-proc download*(lib: Library, beatmapId: int, shouldSave=false): Beatmap
+proc download*(lib: Library, beatmapId: int, shouldSave = false): Beatmap
 
 proc newLibrary*(path: string, cacheSize: int = DEFAULT_CACHE_SIZE,
     downloadUrl: string = DEFAULT_DOWNLOAD_URL): Library =
@@ -80,7 +80,7 @@ iterator osuFiles(path: string, recurse: bool): string =
         yield path / filename
 
 
-proc createDb*(path: string, recurse=true, cacheSize: int = DEFAULT_CACHE_SIZE, downloadUrl: string = DEFAULT_DOWNLOAD_URL): Library =
+proc createDb*(path: string, recurse = true, cacheSize: int = DEFAULT_CACHE_SIZE, downloadUrl: string = DEFAULT_DOWNLOAD_URL): Library =
   ## Create a Library from a directory of ``.osu`` files.
   ##
   ## **Note:** Moving the underlying ``.osu`` files invalidates the library.
@@ -93,7 +93,7 @@ proc createDb*(path: string, recurse=true, cacheSize: int = DEFAULT_CACHE_SIZE, 
   except: # FileNotFoundError:
     discard
 
-  result = newLibrary(path, cacheSize=cacheSize, downloadUrl=downloadUrl)
+  result = newLibrary(path, cacheSize = cacheSize, downloadUrl = downloadUrl)
 
   # progress = maybeShowProgress(
   #     osuFiles(path, recurse=recurse),
@@ -101,7 +101,7 @@ proc createDb*(path: string, recurse=true, cacheSize: int = DEFAULT_CACHE_SIZE, 
   #     label="Processing beatmaps: ",
   #     itemShowFunc=lambda p: "Done!" if p is None else str(p.stem),
   # )
-  for path in osuFiles(path, recurse=recurse):
+  for path in osuFiles(path, recurse = recurse):
     let
       f = open(path, fmRead)
       data = f.readAll()
@@ -178,7 +178,7 @@ proc save*(lib: Library, data: string): Beatmap =
   let beatmap = parseBeatmap(data)
   lib.save(data, beatmap)
 
-proc delete*(lib: Library, beatmap: Beatmap, shouldDeleteFile=false) =
+proc delete*(lib: Library, beatmap: Beatmap, shouldDeleteFile = false) =
   ## Remove a beatmap from the library.
 
   if shouldDeleteFile:
@@ -219,7 +219,7 @@ proc writeToDb(lib: Library, args: varargs[tuple[beatmap: Beatmap, data: string,
   for i in args:
     lib.writeToDb(i[0], i[1], i[2])
 
-proc download*(lib: Library, beatmapId: int, shouldSave=false): Beatmap =
+proc download*(lib: Library, beatmapId: int, shouldSave = false): Beatmap =
   ## Download a beatmap.
   let
     beatmapResponse = client.get(&"{lib.downloadUrl}/{beatmapId}")

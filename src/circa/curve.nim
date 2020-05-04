@@ -35,7 +35,7 @@ type
                         # accomodate the future to-do about creating Linears
                         # instead of Beziers when the Bezier is 2 points
                         # long.
-    reqLength*: float # required length
+    reqLength*: float   # required length
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -128,7 +128,7 @@ method at(curve: Bezier, t: float): Position =
   let
     p = curve.points
     n = p.high # order of curve
-  # formula found at https://en.wikipedia.org/wiki/B%C3%A9zier_curve#Explicit_definition
+               # formula found at https://en.wikipedia.org/wiki/B%C3%A9zier_curve#Explicit_definition
   for i in 0..n:
     result += binom(n, i).float * (1 - t).pow((n - i).float64) * t.pow(i.float64) * p[i]
 
@@ -165,7 +165,7 @@ method tangent(curve: Bezier, t: float): Vec[2, float] =
   let
     p = curve.points
     n = p.high # order of curve
-  # formula found at https://pages.mtu.edu/~shene/COURSES/cs3621/NOTES/spline/Bezier/bezier-der.html
+               # formula found at https://pages.mtu.edu/~shene/COURSES/cs3621/NOTES/spline/Bezier/bezier-der.html
   for i in 0..<n:
     result += binom((n-1), i).float * (1 - t).pow(((n-1) - i).float64) * t.pow(i.float64) * (n.float * (p[i+1] - p[i]))
   result.normalize
@@ -287,15 +287,15 @@ proc bisectLeft[T](a: seq[T], x: T, lo: int = 0, hi: int = -1): int =
     lo = lo
     hi = hi
   if lo < 0:
-      raise newException(ValueError, "lo must be non-negative")
+    raise newException(ValueError, "lo must be non-negative")
   if hi == -1:
-      hi = a.len
+    hi = a.len
   while lo < hi:
-      let mid = (lo+hi) div 2
-      if a[mid] < x:
-        lo = mid+1
-      else:
-        hi = mid
+    let mid = (lo+hi) div 2
+    if a[mid] < x:
+      lo = mid+1
+    else:
+      hi = mid
   return lo
 
 proc length*(curveSeq: LimCurveSeq): float =
@@ -370,7 +370,7 @@ when isMainModule:
   import gnuplot
 
   let bezpos: seq[Position] = @[
-    newPos(216,231),
+    newPos(216, 231),
     newPos(216, 135),
     newPos(280, 135),
     newPos(344, 135),

@@ -1,10 +1,8 @@
 import units, utils, hitsound
 
-import options, strutils, strformat, sequtils
+import strutils, strformat, sequtils
 
 import unpack
-
-export options
 
 type
 
@@ -12,30 +10,30 @@ type
     KiaiTime
     BarLineOmit = 4
   TimingPointEffects* = set[TimingPointEffect]
-  TimingPoint* = ref object ## A timing point assigns properties to an offset
-                            ## into a beatmap.
-    offset*: Duration ## When this ``TimingPoint`` takes effect.
-    case inherited*: bool ## Whether or not the timing point is inherited.
+  TimingPoint* = ref object      ## A timing point assigns properties to an offset
+                                 ## into a beatmap.
+    offset*: Duration            ## When this ``TimingPoint`` takes effect.
+    case inherited*: bool        ## Whether or not the timing point is inherited.
     of true:
       sliderDurationMultiplier*: float
-      parent*: TimingPoint ## The parent of an inherited timing point.
-                           ## An inherited timing point differs from a
-                           ## normal timing point in that the
-                           ## ``ms_per_beat`` value is negative, and
-                           ## defines a new ``ms_per_beat`` based on the
-                           ## parent timing point. This can be used to
-                           ## change volume without affecting offset
-                           ## timing, or changing slider speeds. If this
-                           ## is not an inherited timing point the parent
-                           ## should be ``None``.
+      parent*: TimingPoint       ## The parent of an inherited timing point.
+                                 ## An inherited timing point differs from a
+                                 ## normal timing point in that the
+                                 ## ``ms_per_beat`` value is negative, and
+                                 ## defines a new ``ms_per_beat`` based on the
+                                 ## parent timing point. This can be used to
+                                 ## change volume without affecting offset
+                                 ## timing, or changing slider speeds. If this
+                                 ## is not an inherited timing point the parent
+                                 ## should be ``None``.
     of false:
-      beatDuration*: Duration ## The duration of a beat, this is another
-                              ## representation of BPM.
-    meter*: int ## The number of beats per measure.
-    sampleSet*: SampleSet ## The type of hit sound samples that are used. FIXME
-    sampleIndex*: int ## The set of hit sound samples that are used. FIXME
-    volume*: uint8 ## The volume of hit sounds in the range [0, 100].
-                   ## This value will be clipped if outside the range.
+      beatDuration*: Duration    ## The duration of a beat, this is another
+                                 ## representation of BPM.
+    meter*: int                  ## The number of beats per measure.
+    sampleSet*: SampleSet        ## The type of hit sound samples that are used. FIXME
+    sampleIndex*: int            ## The set of hit sound samples that are used. FIXME
+    volume*: uint8               ## The volume of hit sounds in the range [0, 100].
+                                 ## This value will be clipped if outside the range.
 
     effects*: TimingPointEffects ## Whether or not kiai time effects are active.
 
@@ -114,7 +112,7 @@ proc between*(timingPoints: openarray[TimingPoint],
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-proc parseTimingPoint*(data: string, parent: Option[TimingPoint]=none(TimingPoint)): TimingPoint =
+proc parseTimingPoint*(data: string, parent: Option[TimingPoint] = none(TimingPoint)): TimingPoint =
   var
     rest = data.split(",")
 
@@ -173,7 +171,7 @@ proc parseTimingPoint*(data: string, parent: Option[TimingPoint]=none(TimingPoin
   else:
     new result
   offset <== offsetStr
-  result.offset = initDuration(milliseconds=offset)
+  result.offset = initDuration(milliseconds = offset)
   beatDuration <== beatDurationStr
   result.meter <== meterStr
   sampleSet <== sampleSetStr
@@ -182,10 +180,14 @@ proc parseTimingPoint*(data: string, parent: Option[TimingPoint]=none(TimingPoin
   result.volume <== volumeStr
   result.effects <== effectsStr
   if inherited and parent.isSome:
-    result.sliderDurationMultiplier = -1 * beatDuration / 100
-    result.parent = parent.get()
+    withSome parent:
+      some value:
+        result.sliderDurationMultiplier = -1 * beatDuration / 100
+        result.parent = value
+      none:
+        raise newException(Defect, "parent is none but inherited is true")
   else:
-    result.beatDuration = initDuration(milliseconds=beatDuration)
+    result.beatDuration = initDuration(milliseconds = beatDuration)
 
 proc parseTimingPoints*(datas: seq[string]): seq[TimingPoint] =
   var parent: TimingPoint
@@ -245,6 +247,6 @@ when isMainModule:
   for v in b:
     echo $v
 
-  for v in b.between(initDuration(seconds=40), initDuration(seconds=60)):
+  for v in b.between(initDuration(seconds = 40), initDuration(seconds = 60)):
     # echo $v.bpm & "  " & $v.parent.get().bpm
     discard

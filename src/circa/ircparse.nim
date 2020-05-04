@@ -31,11 +31,11 @@ proc toIRCString*(ms: Mods): string =
   var resultSeq: seq[string] = @[]
 
   for m in ms:
-    if m in SCORE_INCREASE_MODS:
+    if m in ScoreIncreaseMods:
       resultSeq.add("+" & $m)
-    elif m in SCORE_DECREASE_MODS:
+    elif m in ScoreDecreaseMods:
       resultSeq.add("-" & $m)
-    elif m in KEYMOD:
+    elif m in KeyMods:
       resultSeq.add("|" & m.toShortString & "|")
 
   result = resultSeq.join(" ")

@@ -58,10 +58,10 @@ proc initDuration*(nanoseconds, microseconds, milliseconds,
       convert(Milliseconds, Nanoseconds, milliseconds) +
       convert(Microseconds, Nanoseconds, microseconds) +
       convert(Nanoseconds, Nanoseconds, nanoseconds)
-  initDuration(seconds=iSeconds, nanoseconds=nanoseconds.int64)  # sadly we cannot retain under nanosecond precision
+  initDuration(seconds = iSeconds, nanoseconds = nanoseconds.int64) # sadly we cannot retain under nanosecond precision
 
 proc `*`*(x: Duration, y: SomeFloat): Duration =
-  initDuration(milliseconds=x.inFloatMilliseconds * y)
+  initDuration(milliseconds = x.inFloatMilliseconds * y)
 
 proc `*`*(x: SomeFloat, y: Duration): Duration =
   y * x
@@ -93,11 +93,11 @@ type
     position: Position
     offset: Duration
 
-proc newPos*(x, y: float64): Vec2[float64] {.inject, inline.} = Vec2[float64](arr: [x,y])
-proc newPos*(x: float64)   : Vec2[float64] {.inject, inline.} = Vec2[float64](arr: [x,x])
+proc newPos*(x, y: float64): Vec2[float64] {.inject, inline.} = Vec2[float64](arr: [x, y])
+proc newPos*(x: float64): Vec2[float64] {.inject, inline.} = Vec2[float64](arr: [x, x])
 proc newPos*(a: array[0..1, float64]): Vec2[float64] {.inject, inline.} = Vec2[float64](arr: [a[0], a[1]])
 
-proc `~=`*(x, y: Position, ep=0.00001): bool =
+proc `~=`*(x, y: Position, ep = 0.00001): bool =
   for index, val in x.arr:
     if not `~=`(x.arr[index], y.arr[index], ep):
       result = false
