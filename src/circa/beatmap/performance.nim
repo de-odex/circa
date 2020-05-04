@@ -2,16 +2,16 @@ import ../../circa/[beatmap, game_mode, mods]
 
 import math
 
-proc performancePoints(sbm: ScoredBeatmap): float =
-  case sbm.gameMode
+proc performancePoints*(sbm: ScoredBeatmap): float =
+  case sbm.modeBeatmap.gameMode
   of Standard:
     discard
 
   of Catch:
     let
       stars = 0f # FIXME: star calculation for osu!catch
-      maxCombo = sbm.maxCombo
-      ar = sbm.beatmap.difficulty.approachRate
+      maxCombo = sbm.modeBeatmap.maxCombo
+      ar = sbm.modeBeatmap.ar
     result = (5 * max(1.0, stars / 0.0049) - 4)^2 / 100000
     result *= 0.95 + 0.4 * min(1.0, max_combo.float / 3000.0) + (block:
       if max_combo > 3000:
@@ -27,9 +27,9 @@ proc performancePoints(sbm: ScoredBeatmap): float =
       result *= 1 + 0.025 * (8.0 - ar)
     result *= sbm.accuracy.pow(5.5)
 
-    if Hidden in sbm.mods:
+    if Hidden in sbm.modeBeatmap.mods:
       result *= 1.05 + 0.075 * (10.0 - min(10.0, ar))
-    elif Flashlight in sbm.mods:
+    elif Flashlight in sbm.modeBeatmap.mods:
       result *= 1.35 * (0.95 + 0.4 * min(1.0, max_combo.float / 3000.0) + (block:
         if max_combo > 3000:
           log(max_combo.float / 3000.0, 10) * 0.5
@@ -42,11 +42,11 @@ proc performancePoints(sbm: ScoredBeatmap): float =
     #  Thanks Error- for the formula
     let
       stars = 0f # FIXME: star calculation for osu!mania
-      od = sbm.beatmap.difficulty.overall_difficulty
-      object_count = sbm.beatmap.hit_objects.len
+      od = sbm.modeBeatmap.od
+      object_count = sbm.modeBeatmap.beatmap.hit_objects.len
     var score = sbm.score
 
-    if (KEYMOD * sbm.mods).len > 0:
+    if (KeyMods * sbm.modeBeatmap.mods).len > 0:
       discard
       # score *= beatmap_data.score_multiplier(mods) # TODO: what
 
@@ -80,9 +80,9 @@ proc performancePoints(sbm: ScoredBeatmap): float =
       strain_factor = pow(base_strain, 1.1)
     result = pow(acc_factor + strain_factor, 1 / 1.1)
     try:
-      if Easy in sbm.mods:
+      if Easy in sbm.modeBeatmap.mods:
         result *= 0.5
-      elif NoFail in sbm.mods:
+      elif NoFail in sbm.modeBeatmap.mods:
         result *= 0.9
       else:
         result *= 0.8
@@ -92,8 +92,8 @@ proc performancePoints(sbm: ScoredBeatmap): float =
   of Taiko:
     let
       stars = 0f # FIXME: star calculation for osu!taiko
-      od = sbm.od
-      perfect_hits = (sbm.maxCombo - sbm.misses)
+      od = sbm.modeBeatmap.od
+      perfect_hits = (sbm.modeBeatmap.maxCombo - sbm.misses)
 
       max_od = 20
       min_od = 50
@@ -102,21 +102,21 @@ proc performancePoints(sbm: ScoredBeatmap): float =
     var
       strain = ((max(1f, stars / 0.0075) * 5 - 4)^2 / 100000) * (min(1f, sbm.maxCombo / 1500) * 0.1 + 1)
     strain *= 0.985 ^ sbm.misses
-    strain *= min(perfect_hits.float.pow(0.5) / sbm.maxCombo.float.pow(0.5), 1)
+    strain *= min(perfect_hits.float.pow(0.5) / sbm.modeBeatmap.maxCombo.float.pow(0.5), 1)
     strain *= sbm.accuracy
     var
       acc_factor = (150 / perfect_window).pow(1.1) * sbm.accuracy^15 * 22
-    acc_factor *= min(pow(sbm.maxCombo.float / 1500, 0.3), 1.15)
+    acc_factor *= min(pow(sbm.modeBeatmap.maxCombo.float / 1500, 0.3), 1.15)
 
     var mod_multiplier = 1.1
     try:
-      if Hidden in sbm.mods:
+      if Hidden in sbm.modeBeatmap.mods:
         mod_multiplier *= 1.1
         strain *= 1.025
-      elif NoFail in sbm.mods:
+      elif NoFail in sbm.modeBeatmap.mods:
         mod_multiplier *= 0.9
-      elif Flashlight in sbm.mods:
-        strain *= 1.05 * min(1, sbm.maxCombo / 1500) * 0.1 + 1
+      elif Flashlight in sbm.modeBeatmap.mods:
+        strain *= 1.05 * min(1, sbm.modeBeatmap.maxCombo / 1500) * 0.1 + 1
     except:
       discard
 
